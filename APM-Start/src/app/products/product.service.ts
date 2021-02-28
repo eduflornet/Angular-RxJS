@@ -1,8 +1,10 @@
+import { ProductCategoryService } from "./../product-categories/product-category.service";
+import { ProductCategory } from "./../product-categories/product-category";
 import { Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 
-import { Observable, throwError } from "rxjs";
-import { catchError, map, tap } from "rxjs/operators";
+import { combineLatest, forkJoin, Observable, throwError } from "rxjs";
+import { catchError, map, shareReplay, tap, withLatestFrom } from "rxjs/operators";
 
 import { Product } from "./product";
 import { Supplier } from "../suppliers/supplier";
@@ -13,6 +15,7 @@ import { SupplierService } from "../suppliers/supplier.service";
 })
 export class ProductService {
   private productsUrl = "api/products";
+  private productCategoriesUrl = "";
   private suppliersUrl = this.supplierService.suppliersUrl;
 
   products$ = this.http.get<Product[]>(this.productsUrl).pipe(
@@ -30,9 +33,45 @@ export class ProductService {
     catchError(this.handleError)
   );
 
+  productCategories$ = this.http.get<ProductCategory[]>(
+    this.productCategoriesUrl
+  );
+
+  // productsWithCategory$ = this.products$.pipe(
+  //   withLatestFrom(
+  //     this.productCategories$
+  //   )
+  // );
+
+  productsWithCategory$ = combineLatest([
+    this.products$,
+    this.productCategoryService.productCategories$
+  ]).pipe(
+    map(([products, categories]) =>
+      products.map(product => ({
+        ...product,
+        price: product.price * 1.5,
+        category: categories.find(c => product.categoryId === c.id).name,
+        searchKey: [product.productName]
+      }) as Product)
+    ),
+    shareReplay(1)
+  );
+
+  productsWithCategoryCombineLatest$ = combineLatest([
+    this.products$,
+    this.productCategories$,
+  ]);
+
+  productsWithCategoryForkJoin$ = forkJoin([
+    this.products$,
+    this.productCategories$,
+  ]);
+
   constructor(
     private http: HttpClient,
-    private supplierService: SupplierService
+    private supplierService: SupplierService,
+    private productCategoryService: ProductCategoryService
   ) {}
 
   private fakeProduct() {
